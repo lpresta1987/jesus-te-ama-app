@@ -1,31 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Jesus te Ama — Church App (MVP)
+ * Jesús te Ama — Church App (MVP)
  * - Mobile-first web app (single-file React)
  * - Bilingual (ES/EN)
  * - No login
- * - Features: Sermons/Livestream, Prayer Request form (to Google Sheets + email via Apps Script), Events/Calendar, Announcements, Giving buttons
- *
- * HOW TO CONNECT GOOGLE SHEETS + EMAIL (Recommended: Google Apps Script)
- * 1) Create a Google Sheet with tabs:
- *    - PrayerRequests (headers: Timestamp, Name, Email, Phone, Language, Request, PermissionToShare)
- *    - Announcements (headers: Timestamp, Language, Title, Body, Link)
- *    - Events (headers: StartISO, EndISO, Title, Description, Location, Link, Language)
- *
- * 2) Extensions -> Apps Script. Paste a script that:
- *    - doGet(): returns announcements + events as JSON
- *    - doPost(): writes prayer requests to sheet and sends email notification
- * 3) Deploy -> New deployment -> Web app
- *    - Execute as: Me
- *    - Who has access: Anyone
- * 4) Copy the Web App URL and paste into the constants below.
+ * - Sermons/Livestream links
+ * - Prayer request form (POST -> Apps Script -> Google Sheets + email)
+ * - Events + Announcements (GET -> Apps Script -> Google Sheets)
+ * - Giving buttons
  */
 
 // ============ CONFIG (EDIT THESE) ============
 const CONFIG = {
-  // Your Google Apps Script Web App URL (ends with "/exec")
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwmfijQzwlEb43Fu2trR5im5UrOm8ChM5keTwRe6hbyg2bdAZvIspINu0BM10MhXg_Jew/exec",
+  // Google Apps Script Web App URL (ends with "/exec")
+  APPS_SCRIPT_URL:
+    "https://script.google.com/macros/s/AKfycbwmfijQzwlEb43Fu2trR5im5UrOm8ChM5keTwRe6hbyg2bdAZvIspINu0BM10MhXg_Jew/exec",
 
   // Sermons / livestream
   LIVESTREAMS: {
@@ -35,18 +25,18 @@ const CONFIG = {
 
   // Giving buttons
   GIVING: {
-    zelle: "https://enroll.zellepay.com/qr-codes?data=REPLACE_ME", // or a short link / image QR
+    zelle: "https://enroll.zellepay.com/qr-codes?data=REPLACE_ME",
     cashapp: "https://cash.app/$REPLACE_ME",
     website: "https://REPLACE_ME",
   },
 
-  // Optional: if you store sermons as a playlist
+  // Optional: sermon library links
   SERMONS: {
     youtubePlaylist: "https://www.youtube.com/playlist?list=REPLACE_ME",
     podcast: "https://open.spotify.com/show/REPLACE_ME",
   },
 
-  // Optional: church contact
+  // Contact
   CONTACT: {
     phone: "(REPLACE) 000-0000",
     email: "info@REPLACE_ME.org",
@@ -104,8 +94,6 @@ const I18N = {
     },
     common: {
       open: "Abrir",
-      learnMore: "Más info",
-      link: "Enlace",
       loading: "Cargando...",
       refresh: "Actualizar",
     },
@@ -158,8 +146,6 @@ const I18N = {
     },
     common: {
       open: "Open",
-      learnMore: "Learn more",
-      link: "Link",
       loading: "Loading...",
       refresh: "Refresh",
     },
@@ -188,7 +174,6 @@ function formatEventDate(iso, lang) {
 }
 
 function buildIcs({ title, startISO, endISO, description, location, url }) {
-  // Minimal ICS for “Add to calendar”
   const dt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   const uid = `${Math.random().toString(16).slice(2)}@jesusteama`;
   const esc = (s = "") => String(s).replace(/\\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
@@ -230,7 +215,6 @@ export default function App() {
   const t = I18N[lang];
   const [tab, setTab] = useState("home");
 
-  // Data from Google Sheets (via Apps Script)
   const [announcements, setAnnouncements] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -250,39 +234,10 @@ export default function App() {
   );
 
   async function fetchData() {
-    if (!CONFIG.APPS_SCRIPT_URL.includes("script.google.com")) {
-      // No endpoint configured — keep it usable with placeholders
-      setAnnouncements([
-        {
-          title: lang === "es" ? "Ejemplo: Bienvenidos" : "Sample: Welcome",
-          body:
-            lang === "es"
-              ? "Configura tu Google Sheet + Apps Script para ver anuncios reales aquí." 
-              : "Connect Google Sheets + Apps Script to show real announcements here.",
-          link: "",
-          language: lang,
-        },
-      ]);
-      setEvents([
-        {
-          title: lang === "es" ? "Servicio Dominical" : "Sunday Service",
-          description: lang === "es" ? "Adoración y Palabra" : "Worship & Word",
-          location: CONFIG.CONTACT.address,
-          link: "",
-          startISO: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-          endISO: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 90 * 60 * 1000).toISOString(),
-          language: lang,
-        },
-      ]);
-      return;
-    }
-
     setLoading(true);
     setLoadError(false);
     try {
-      const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=feed&lang=${lang}`, {
-        method: "GET",
-      });
+      const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=feed&lang=${lang}`, { method: "GET" });
       if (!res.ok) throw new Error("Bad response");
       const json = await res.json();
       setAnnouncements(Array.isArray(json.announcements) ? json.announcements : []);
@@ -300,22 +255,12 @@ export default function App() {
   }, [lang]);
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: brand.bg, color: brand.text, fontFamily: "ui-sans-serif, system-ui" }}
-    >
+    <div className="min-h-screen" style={{ background: brand.bg, color: brand.text, fontFamily: "ui-sans-serif, system-ui" }}>
       <Header lang={lang} setLang={setLang} title={t.appName} brand={brand} />
 
       <main className="mx-auto w-full max-w-md px-4 pb-24 pt-4">
         {tab === "home" && (
-          <Home
-            t={t}
-            brand={brand}
-            announcements={announcements}
-            loading={loading}
-            loadError={loadError}
-            onRefresh={fetchData}
-          />
+          <Home t={t} brand={brand} announcements={announcements} loading={loading} loadError={loadError} onRefresh={fetchData} />
         )}
         {tab === "sermons" && <Sermons t={t} brand={brand} />}
         {tab === "events" && (
@@ -338,7 +283,6 @@ function Header({ title, lang, setLang, brand }) {
     >
       <div className="mx-auto flex w-full max-w-md items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
-          {/* Replace /logo.png with your hosted logo */}
           <div
             className="flex h-10 w-10 items-center justify-center rounded-2xl"
             style={{ background: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})` }}
@@ -358,20 +302,14 @@ function Header({ title, lang, setLang, brand }) {
 
         <div className="flex items-center gap-2">
           <button
-            className={clsx(
-              "rounded-xl border px-3 py-2 text-xs font-semibold",
-              lang === "es" ? "" : "opacity-70"
-            )}
+            className={clsx("rounded-xl border px-3 py-2 text-xs font-semibold", lang === "es" ? "" : "opacity-70")}
             style={{ borderColor: brand.border, background: lang === "es" ? brand.card : "transparent" }}
             onClick={() => setLang("es")}
           >
             ES
           </button>
           <button
-            className={clsx(
-              "rounded-xl border px-3 py-2 text-xs font-semibold",
-              lang === "en" ? "" : "opacity-70"
-            )}
+            className={clsx("rounded-xl border px-3 py-2 text-xs font-semibold", lang === "en" ? "" : "opacity-70")}
             style={{ borderColor: brand.border, background: lang === "en" ? brand.card : "transparent" }}
             onClick={() => setLang("en")}
           >
@@ -463,7 +401,11 @@ function Home({ t, brand, announcements, loading, loadError, onRefresh }) {
             {announcements.map((a, idx) => (
               <div key={idx} className="rounded-xl border p-3" style={{ borderColor: brand.border }}>
                 <div className="text-sm font-semibold">{a.title}</div>
-                {a.body ? <div className="mt-1 text-sm" style={{ color: brand.muted }}>{a.body}</div> : null}
+                {a.body ? (
+                  <div className="mt-1 text-sm" style={{ color: brand.muted }}>
+                    {a.body}
+                  </div>
+                ) : null}
                 {a.link ? (
                   <a className="mt-2 inline-block text-sm font-semibold" style={{ color: brand.primary }} href={a.link} target="_blank" rel="noreferrer">
                     {t.common.open}
@@ -516,25 +458,13 @@ function Sermons({ t, brand }) {
       <Card brand={brand}>
         <div className="text-lg font-semibold">{t.sermons.title}</div>
         <div className="mt-3 grid grid-cols-1 gap-3">
-          <a
-            href={CONFIG.LIVESTREAMS.youtube}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl border p-4"
-            style={{ borderColor: brand.border }}
-          >
+          <a href={CONFIG.LIVESTREAMS.youtube} target="_blank" rel="noreferrer" className="rounded-2xl border p-4" style={{ borderColor: brand.border }}>
             <div className="text-sm font-semibold">YouTube — {t.sermons.live}</div>
             <div className="mt-1 text-sm" style={{ color: brand.muted }}>
               {t.sermons.watchYouTube}
             </div>
           </a>
-          <a
-            href={CONFIG.LIVESTREAMS.facebook}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl border p-4"
-            style={{ borderColor: brand.border }}
-          >
+          <a href={CONFIG.LIVESTREAMS.facebook} target="_blank" rel="noreferrer" className="rounded-2xl border p-4" style={{ borderColor: brand.border }}>
             <div className="text-sm font-semibold">Facebook — {t.sermons.live}</div>
             <div className="mt-1 text-sm" style={{ color: brand.muted }}>
               {t.sermons.watchFacebook}
@@ -546,25 +476,13 @@ function Sermons({ t, brand }) {
       <Card brand={brand}>
         <div className="text-sm font-semibold">{t.sermons.library}</div>
         <div className="mt-3 grid grid-cols-1 gap-3">
-          <a
-            href={CONFIG.SERMONS.youtubePlaylist}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl border p-4"
-            style={{ borderColor: brand.border }}
-          >
+          <a href={CONFIG.SERMONS.youtubePlaylist} target="_blank" rel="noreferrer" className="rounded-2xl border p-4" style={{ borderColor: brand.border }}>
             <div className="text-sm font-semibold">{t.sermons.playlist}</div>
             <div className="mt-1 text-sm" style={{ color: brand.muted }}>
               YouTube
             </div>
           </a>
-          <a
-            href={CONFIG.SERMONS.podcast}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl border p-4"
-            style={{ borderColor: brand.border }}
-          >
+          <a href={CONFIG.SERMONS.podcast} target="_blank" rel="noreferrer" className="rounded-2xl border p-4" style={{ borderColor: brand.border }}>
             <div className="text-sm font-semibold">{t.sermons.podcast}</div>
             <div className="mt-1 text-sm" style={{ color: brand.muted }}>
               Spotify / Apple Podcasts
@@ -612,17 +530,15 @@ function Events({ t, brand, events, loading, loadError, onRefresh, lang }) {
                   {formatEventDate(ev.startISO, lang)}
                   {ev.location ? ` • ${ev.location}` : ""}
                 </div>
-                {ev.description ? <div className="mt-2 text-sm" style={{ color: brand.muted }}>{ev.description}</div> : null}
+                {ev.description ? (
+                  <div className="mt-2 text-sm" style={{ color: brand.muted }}>
+                    {ev.description}
+                  </div>
+                ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {ev.link ? (
-                    <a
-                      href={ev.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-xl px-3 py-2 text-xs font-semibold"
-                      style={{ background: brand.primary, color: "white" }}
-                    >
+                    <a href={ev.link} target="_blank" rel="noreferrer" className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: brand.primary, color: "white" }}>
                       {t.common.open}
                     </a>
                   ) : null}
@@ -655,6 +571,7 @@ function Events({ t, brand, events, loading, loadError, onRefresh, lang }) {
   );
 }
 
+// ================= PRAYER (FIXED POST) =================
 function Prayer({ t, brand, lang }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -667,27 +584,21 @@ function Prayer({ t, brand, lang }) {
     e.preventDefault();
     setStatus("sending");
 
-    // If Apps Script isn't configured yet, simulate success so you can demo the app.
-    if (!CONFIG.APPS_SCRIPT_URL.includes("script.google.com")) {
-      setTimeout(() => setStatus("sent"), 800);
-      return;
-    }
-
     try {
-      const payload = {
-        action: "prayer",
-        name,
-        email,
-        phone,
-        request,
-        permissionToShare: permission,
-        language: lang,
-      };
+      // Send as form-urlencoded to avoid CORS/preflight issues with Apps Script
+      const form = new URLSearchParams();
+      form.set("action", "prayer");
+      form.set("name", name);
+      form.set("email", email);
+      form.set("phone", phone);
+      form.set("request", request);
+      form.set("permissionToShare", permission ? "true" : "false");
+      form.set("language", lang);
 
       const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: form.toString(),
       });
 
       if (!res.ok) throw new Error("Bad response");
@@ -758,15 +669,6 @@ function Prayer({ t, brand, lang }) {
           ) : null}
         </form>
       </Card>
-
-      <Card brand={brand}>
-        <div className="text-sm font-semibold">Privacy</div>
-        <div className="mt-2 text-sm" style={{ color: brand.muted }}>
-          {lang === "es"
-            ? "Solo el equipo pastoral verá estas peticiones. Puedes elegir si se comparte con el grupo de oración."
-            : "Only the pastoral team will see these requests. You can choose whether it’s shared with the prayer team."}
-        </div>
-      </Card>
     </div>
   );
 }
@@ -802,13 +704,6 @@ function Give({ t, brand }) {
           <GiveButton brand={brand} href={CONFIG.GIVING.zelle} label={t.give.zelle} />
           <GiveButton brand={brand} href={CONFIG.GIVING.cashapp} label={t.give.cashapp} />
           <GiveButton brand={brand} href={CONFIG.GIVING.website} label={t.give.website} />
-        </div>
-      </Card>
-
-      <Card brand={brand}>
-        <div className="text-sm font-semibold">Tip</div>
-        <div className="mt-2 text-sm" style={{ color: brand.muted }}>
-          {"You can replace the Zelle link with a QR image page, or a short link that opens the Zelle instructions."}
         </div>
       </Card>
     </div>
@@ -854,10 +749,7 @@ function BottomNav({ t, tab, setTab, brand }) {
               key={it.id}
               onClick={() => setTab(it.id)}
               className="rounded-2xl px-2 py-2"
-              style={{
-                background: active ? brand.bg : "transparent",
-                color: active ? brand.primaryDark : brand.muted,
-              }}
+              style={{ background: active ? brand.bg : "transparent", color: active ? brand.primaryDark : brand.muted }}
               type="button"
             >
               <div className="text-base leading-none">{it.icon}</div>
